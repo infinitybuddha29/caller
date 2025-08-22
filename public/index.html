@@ -123,10 +123,14 @@
         }
         
         .video-wrapper video {
-            width: 280px;
-            height: 210px;
+            width: 480px;
+            height: 360px;
             object-fit: cover;
             display: block;
+        }
+        
+        #localVideo {
+            transform: scaleX(-1); /* Отзеркаливаем локальное видео */
         }
         
         .video-wrapper label {
@@ -140,10 +144,17 @@
             font-size: 14px;
         }
         
+        @media (max-width: 1000px) {
+            .video-wrapper video {
+                width: 360px;
+                height: 270px;
+            }
+        }
+        
         @media (max-width: 600px) {
             .video-wrapper video {
-                width: 240px;
-                height: 180px;
+                width: 280px;
+                height: 210px;
             }
         }
     </style>
