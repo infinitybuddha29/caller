@@ -11,6 +11,7 @@ class VoiceCaller {
         this.connectionTimeout = null;
         this.makingOffer = false;
         this.polite = false;
+        this.currentRoomId = null;
         
         this.iceServers = {
             iceServers: [
@@ -40,6 +41,8 @@ class VoiceCaller {
     initElements() {
         this.roomIdInput = document.getElementById('roomId');
         this.joinBtn = document.getElementById('joinBtn');
+        this.copyBtn = document.getElementById('copyBtn');
+        this.generateBtn = document.getElementById('generateBtn');
         this.muteBtn = document.getElementById('muteBtn');
         this.cameraBtn = document.getElementById('cameraBtn');
         this.testBtn = document.getElementById('testBtn');
@@ -50,10 +53,19 @@ class VoiceCaller {
         this.videoContainer = document.getElementById('videoContainer');
         this.localVideo = document.getElementById('localVideo');
         this.remoteVideo = document.getElementById('remoteVideo');
+        this.currentRoomInfo = document.getElementById('currentRoomInfo');
+        this.currentRoomIdSpan = document.getElementById('currentRoomId');
+        this.copyCurrentBtn = document.getElementById('copyCurrentBtn');
+        
+        // Генерируем начальный UUID
+        this.generateRoomId();
     }
     
     bindEvents() {
         this.joinBtn.addEventListener('click', () => this.joinRoom());
+        this.copyBtn.addEventListener('click', () => this.copyRoomId());
+        this.generateBtn.addEventListener('click', () => this.generateRoomId());
+        this.copyCurrentBtn.addEventListener('click', () => this.copyCurrentRoomId());
         this.muteBtn.addEventListener('click', () => this.toggleMute());
         this.cameraBtn.addEventListener('click', () => this.toggleCamera());
         this.testBtn.addEventListener('click', () => this.testAudio());
@@ -75,8 +87,24 @@ class VoiceCaller {
             this.updateStatus('Подключение к серверу...');
             this.joinBtn.disabled = true;
             
+            // Если уже в комнате, сначала выходим
+            if (this.socket && this.socket.connected) {
+                this.socket.disconnect();
+                this.clearConnectionTimeout();
+            }
+            
+            // Очищаем старое peer connection если есть
+            if (this.peerConnection) {
+                this.peerConnection.close();
+                this.peerConnection = null;
+            }
+            
             await this.initMedia();
             await this.connectWebSocket(roomId);
+            
+            // Сохраняем ID текущего созвона
+            this.currentRoomId = roomId;
+            this.updateCurrentRoomDisplay();
             
         } catch (error) {
             console.error('Error joining room:', error);
@@ -139,6 +167,27 @@ class VoiceCaller {
             
             this.socket.on('ice-candidate', (data) => {
                 this.handleSocketMessage({ type: 'ice-candidate', ...data });
+            });
+            
+            this.socket.on('participant-left', (data) => {
+                console.log('Participant left:', data.userId);
+                this.updateStatus('Собеседник покинул комнату. Можете переподключиться');
+                
+                // Закрываем peer connection, но сохраняем медиа
+                if (this.peerConnection) {
+                    this.peerConnection.close();
+                    this.peerConnection = null;
+                }
+                
+                // Очищаем remote video
+                if (this.remoteVideo) {
+                    this.remoteVideo.srcObject = null;
+                }
+                
+                // Возвращаем к интерфейсу подключения, но не сбрасываем локальное видео
+                this.joinSection.style.display = 'block';
+                this.controls.style.display = 'none';
+                this.joinBtn.disabled = false;
             });
             
             this.socket.on('disconnect', () => {
@@ -244,6 +293,7 @@ class VoiceCaller {
                 this.updateStatus('Видеозвонок активен', 'connected');
                 this.showControls();
                 this.videoContainer.style.display = 'flex';
+                this.updateCurrentRoomDisplay();
             }).catch(error => {
                 console.error('Failed to play remote video:', error);
                 // Браузер может блокировать автовоспроизведение
@@ -409,6 +459,68 @@ class VoiceCaller {
         }
     }
     
+    generateUUID() {
+        // Используем crypto.randomUUID() если доступен, иначе fallback
+        if (crypto && crypto.randomUUID) {
+            return crypto.randomUUID();
+        }
+        
+        // Fallback для старых браузеров
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+    
+    generateRoomId() {
+        const newRoomId = this.generateUUID();
+        this.roomIdInput.value = newRoomId;
+        console.log('Generated new room ID:', newRoomId);
+    }
+    
+    async copyRoomId() {
+        try {
+            await navigator.clipboard.writeText(this.roomIdInput.value);
+            // Временно меняем иконку
+            const originalText = this.copyBtn.textContent;
+            this.copyBtn.textContent = '✅';
+            setTimeout(() => {
+                this.copyBtn.textContent = originalText;
+            }, 1000);
+        } catch (error) {
+            console.error('Failed to copy room ID:', error);
+            // Fallback для старых браузеров
+            this.roomIdInput.select();
+            document.execCommand('copy');
+        }
+    }
+    
+    async copyCurrentRoomId() {
+        if (!this.currentRoomId) return;
+        
+        try {
+            await navigator.clipboard.writeText(this.currentRoomId);
+            // Временно меняем иконку
+            const originalText = this.copyCurrentBtn.textContent;
+            this.copyCurrentBtn.textContent = '✅';
+            setTimeout(() => {
+                this.copyCurrentBtn.textContent = originalText;
+            }, 1000);
+        } catch (error) {
+            console.error('Failed to copy current room ID:', error);
+        }
+    }
+    
+    updateCurrentRoomDisplay() {
+        if (this.currentRoomId && this.currentRoomIdSpan) {
+            this.currentRoomIdSpan.textContent = this.currentRoomId;
+            this.currentRoomInfo.style.display = 'block';
+        } else {
+            this.currentRoomInfo.style.display = 'none';
+        }
+    }
+    
     sendMessage(type, data) {
         if (this.socket) {
             this.socket.emit(type, data);
@@ -552,6 +664,7 @@ class VoiceCaller {
         this.makingOffer = false;
         this.polite = false;
         this.pendingIceCandidates = [];
+        this.currentRoomId = null;
         
         this.joinBtn.disabled = false;
         this.muteBtn.textContent = 'Выключить микрофон';
@@ -562,8 +675,9 @@ class VoiceCaller {
         this.joinSection.style.display = 'block';
         this.controls.style.display = 'none';
         this.videoContainer.style.display = 'none';
+        this.currentRoomInfo.style.display = 'none';
         
-        this.updateStatus('Введите Room ID и нажмите "Присоединиться"');
+        this.updateStatus('Сгенерирован уникальный Room ID. Поделитесь им с собеседником');
     }
     
     showControls() {

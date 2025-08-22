@@ -123,10 +123,14 @@
         }
         
         .video-wrapper video {
-            width: 280px;
-            height: 210px;
+            width: 480px;
+            height: 360px;
             object-fit: cover;
             display: block;
+        }
+        
+        #localVideo {
+            transform: scaleX(-1); /* Отзеркаливаем локальное видео */
         }
         
         .video-wrapper label {
@@ -140,10 +144,83 @@
             font-size: 14px;
         }
         
+        @media (max-width: 1000px) {
+            .video-wrapper video {
+                width: 360px;
+                height: 270px;
+            }
+        }
+        
+        .room-id-container {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        
+        .room-id-container input {
+            flex: 1;
+            margin: 0;
+        }
+        
+        .room-id-container button {
+            padding: 10px;
+            margin: 0;
+            min-width: 40px;
+            font-size: 16px;
+        }
+        
+        .room-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: center;
+        }
+        
+        .current-room-id label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #495057;
+            font-size: 14px;
+        }
+        
+        .current-room-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .current-room-container span {
+            font-family: monospace;
+            font-size: 12px;
+            background: white;
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .current-room-container button {
+            padding: 5px 8px;
+            font-size: 12px;
+            min-width: 30px;
+        }
+        
         @media (max-width: 600px) {
             .video-wrapper video {
-                width: 240px;
-                height: 180px;
+                width: 280px;
+                height: 210px;
+            }
+            
+            .current-room-container span {
+                max-width: 200px;
+                font-size: 10px;
             }
         }
     </style>
@@ -155,12 +232,16 @@
         <div id="joinSection">
             <div class="input-group">
                 <label for="roomId">Room ID:</label>
-                <input type="text" id="roomId" placeholder="Введите ID комнаты" value="test-room">
+                <div class="room-id-container">
+                    <input type="text" id="roomId" placeholder="Введите или сгенерируйте Room ID">
+                    <button id="copyBtn" title="Скопировать ID">📋</button>
+                    <button id="generateBtn" title="Новый ID">🔄</button>
+                </div>
             </div>
             <button id="joinBtn">Присоединиться</button>
         </div>
         
-        <div id="status" class="status">Введите Room ID и нажмите "Присоединиться"</div>
+        <div id="status" class="status">Сгенерирован уникальный Room ID. Поделитесь им с собеседником</div>
         
         <div id="videoContainer" class="video-container" style="display: none;">
             <div class="video-wrapper">
@@ -170,6 +251,16 @@
             <div class="video-wrapper">
                 <video id="remoteVideo" autoplay playsinline></video>
                 <label>Собеседник</label>
+            </div>
+        </div>
+        
+        <div id="currentRoomInfo" class="room-info" style="display: none;">
+            <div class="current-room-id">
+                <label>ID текущего созвона:</label>
+                <div class="current-room-container">
+                    <span id="currentRoomId"></span>
+                    <button id="copyCurrentBtn" title="Скопировать ID">📋</button>
+                </div>
             </div>
         </div>
         
