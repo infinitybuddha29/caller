@@ -68,14 +68,18 @@ class VoiceCaller {
     
     connectWebSocket(roomId) {
         return new Promise((resolve, reject) => {
-            // Определяем, запущено ли локально или на Vercel
+            // Определяем, где запущено приложение
             const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const isRender = window.location.hostname.includes('onrender.com');
             
             if (isLocal) {
                 // Локально используем Socket.IO
                 this.socket = io();
+            } else if (isRender) {
+                // На Render используем Socket.IO (встроенный сервер)
+                this.socket = io();
             } else {
-                // На Vercel используем WebSocket
+                // На других платформах (Vercel) используем внешний WebSocket
                 this.connectWebSocketDirect(roomId, resolve, reject);
                 return;
             }
