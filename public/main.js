@@ -6,11 +6,15 @@ class VoiceCaller {
         this.isMuted = false;
         this.isConnected = false;
         this.isInitiator = false;
+        this.pendingIceCandidates = [];
+        this.connectionTimeout = null;
         
         this.iceServers = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
                 { 
                     urls: 'turn:openrelay.metered.ca:80',
                     username: 'openrelayproject',
@@ -21,7 +25,8 @@ class VoiceCaller {
                     username: 'openrelayproject', 
                     credential: 'openrelayproject'
                 }
-            ]
+            ],
+            iceCandidatePoolSize: 10
         };
         
         this.initElements();
@@ -212,6 +217,7 @@ class VoiceCaller {
         this.peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
                 console.log('Sending ICE candidate:', event.candidate);
+                console.log('ICE candidate type:', event.candidate.type, 'protocol:', event.candidate.protocol);
                 this.sendMessage('ice-candidate', {
                     candidate: event.candidate
                 });
@@ -223,10 +229,28 @@ class VoiceCaller {
         // Отслеживание состояния соединения
         this.peerConnection.oniceconnectionstatechange = () => {
             console.log('ICE connection state:', this.peerConnection.iceConnectionState);
-            if (this.peerConnection.iceConnectionState === 'failed') {
+            if (this.peerConnection.iceConnectionState === 'connected' || 
+                this.peerConnection.iceConnectionState === 'completed') {
+                this.clearConnectionTimeout();
+                console.log('ICE connection established successfully');
+            } else if (this.peerConnection.iceConnectionState === 'failed') {
+                this.clearConnectionTimeout();
                 this.updateStatus('Соединение не удалось. Попробуйте еще раз.');
+            } else if (this.peerConnection.iceConnectionState === 'disconnected') {
+                this.updateStatus('Соединение потеряно, переподключение...');
             }
         };
+        
+        // Таймаут на установку соединения (30 секунд)
+        this.connectionTimeout = setTimeout(() => {
+            if (this.peerConnection && 
+                this.peerConnection.iceConnectionState !== 'connected' &&
+                this.peerConnection.iceConnectionState !== 'completed') {
+                console.log('Connection timeout reached');
+                this.updateStatus('Таймаут соединения. Попробуйте еще раз.');
+                this.leaveRoom();
+            }
+        }, 30000);
         
         this.peerConnection.onconnectionstatechange = () => {
             console.log('Connection state:', this.peerConnection.connectionState);
@@ -247,6 +271,9 @@ class VoiceCaller {
     async handleOffer(message) {
         await this.peerConnection.setRemoteDescription(message.offer);
         
+        // Обрабатываем накопленные ICE кандидаты
+        await this.processPendingIceCandidates();
+        
         const answer = await this.peerConnection.createAnswer();
         await this.peerConnection.setLocalDescription(answer);
         
@@ -260,6 +287,9 @@ class VoiceCaller {
         if (this.peerConnection.signalingState === 'have-local-offer') {
             await this.peerConnection.setRemoteDescription(message.answer);
             console.log('Answer set successfully');
+            
+            // Обрабатываем накопленные ICE кандидаты
+            await this.processPendingIceCandidates();
         } else {
             console.warn('Received answer in wrong state:', this.peerConnection.signalingState);
         }
@@ -269,10 +299,35 @@ class VoiceCaller {
         if (this.peerConnection && message.candidate) {
             try {
                 console.log('Adding ICE candidate:', message.candidate);
-                await this.peerConnection.addIceCandidate(message.candidate);
+                if (this.peerConnection.remoteDescription) {
+                    await this.peerConnection.addIceCandidate(message.candidate);
+                } else {
+                    console.log('Buffering ICE candidate until remote description is set');
+                    this.pendingIceCandidates.push(message.candidate);
+                }
             } catch (error) {
                 console.error('Error adding ICE candidate:', error);
             }
+        }
+    }
+    
+    async processPendingIceCandidates() {
+        console.log(`Processing ${this.pendingIceCandidates.length} pending ICE candidates`);
+        while (this.pendingIceCandidates.length > 0) {
+            const candidate = this.pendingIceCandidates.shift();
+            try {
+                await this.peerConnection.addIceCandidate(candidate);
+                console.log('Added pending ICE candidate:', candidate);
+            } catch (error) {
+                console.error('Error adding pending ICE candidate:', error);
+            }
+        }
+    }
+    
+    clearConnectionTimeout() {
+        if (this.connectionTimeout) {
+            clearTimeout(this.connectionTimeout);
+            this.connectionTimeout = null;
         }
     }
     
@@ -333,12 +388,15 @@ class VoiceCaller {
     }
     
     resetUI() {
+        this.clearConnectionTimeout();
+        
         this.socket = null;
         this.peerConnection = null;
         this.localStream = null;
         this.isMuted = false;
         this.isConnected = false;
         this.isInitiator = false;
+        this.pendingIceCandidates = [];
         
         this.joinBtn.disabled = false;
         this.muteBtn.textContent = 'Выключить микрофон';
