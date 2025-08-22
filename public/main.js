@@ -9,7 +9,18 @@ class VoiceCaller {
         
         this.iceServers = {
             iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' }
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { 
+                    urls: 'turn:openrelay.metered.ca:80',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443',
+                    username: 'openrelayproject', 
+                    credential: 'openrelayproject'
+                }
             ]
         };
         
@@ -199,10 +210,25 @@ class VoiceCaller {
         // Обработка ICE кандидатов
         this.peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
+                console.log('Sending ICE candidate:', event.candidate);
                 this.sendMessage('ice-candidate', {
                     candidate: event.candidate
                 });
+            } else {
+                console.log('ICE gathering complete');
             }
+        };
+        
+        // Отслеживание состояния соединения
+        this.peerConnection.oniceconnectionstatechange = () => {
+            console.log('ICE connection state:', this.peerConnection.iceConnectionState);
+            if (this.peerConnection.iceConnectionState === 'failed') {
+                this.updateStatus('Соединение не удалось. Попробуйте еще раз.');
+            }
+        };
+        
+        this.peerConnection.onconnectionstatechange = () => {
+            console.log('Connection state:', this.peerConnection.connectionState);
         };
         
         this.updateStatus('Соединение устанавливается...', 'calling');
@@ -239,8 +265,13 @@ class VoiceCaller {
     }
     
     async handleIceCandidate(message) {
-        if (this.peerConnection) {
-            await this.peerConnection.addIceCandidate(message.candidate);
+        if (this.peerConnection && message.candidate) {
+            try {
+                console.log('Adding ICE candidate:', message.candidate);
+                await this.peerConnection.addIceCandidate(message.candidate);
+            } catch (error) {
+                console.error('Error adding ICE candidate:', error);
+            }
         }
     }
     
