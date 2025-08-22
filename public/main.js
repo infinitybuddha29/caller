@@ -120,10 +120,14 @@ class VoiceCaller {
         try {
             switch (message.type) {
                 case 'ready':
-                    if (!this.isInitiator) {
-                        this.isInitiator = true;
-                        await this.initPeerConnection();
+                    console.log('Received ready message:', message);
+                    this.isInitiator = message.isInitiator;
+                    await this.initPeerConnection();
+                    if (this.isInitiator) {
+                        console.log('Creating offer as initiator');
                         await this.createOffer();
+                    } else {
+                        console.log('Waiting for offer as non-initiator');
                     }
                     break;
                     

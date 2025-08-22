@@ -80,8 +80,13 @@ function handleJoin(socket, roomId) {
   console.log(`Client ${socket.id} joined room ${roomId}. Room size: ${room.length}`);
   
   if (room.length === 2) {
-    socket.to(roomId).emit('ready');
-    socket.emit('ready');
+    // Только первый клиент становится инициатором
+    const initiatorSocket = io.sockets.sockets.get(room[0]);
+    if (initiatorSocket) {
+      initiatorSocket.emit('ready', { isInitiator: true });
+    }
+    // Второй клиент не инициатор
+    socket.emit('ready', { isInitiator: false });
   }
 }
 
