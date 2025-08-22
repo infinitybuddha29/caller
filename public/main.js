@@ -71,9 +71,14 @@ class VoiceCaller {
             // Определяем, запущено ли локально или на Vercel
             const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
             
-            this.socket = io({
-                path: isLocal ? '/socket.io/' : '/api/socket'
-            });
+            if (isLocal) {
+                // Локально используем Socket.IO
+                this.socket = io();
+            } else {
+                // На Vercel используем WebSocket
+                this.connectWebSocketDirect(roomId, resolve, reject);
+                return;
+            }
             
             this.socket.on('connect', () => {
                 this.socket.emit('join', roomId);
@@ -106,6 +111,31 @@ class VoiceCaller {
                 reject(new Error('Ошибка подключения к серверу'));
             });
         });
+    }
+    
+    connectWebSocketDirect(roomId, resolve, reject) {
+        // Используем публичный WebSocket сервис или деплойте отдельный сервер
+        const wsUrl = 'https://caller-2j05.onrender.com'; // Замените на ваш URL
+        this.ws = new WebSocket(wsUrl);
+        
+        this.ws.onopen = () => {
+            this.ws.send(JSON.stringify({ type: 'join', roomId }));
+            this.updateStatus('Ожидание второго участника...');
+            resolve();
+        };
+        
+        this.ws.onmessage = (event) => {
+            this.handleSocketMessage(JSON.parse(event.data));
+        };
+        
+        this.ws.onclose = () => {
+            this.updateStatus('Соединение с сервером потеряно');
+            this.resetUI();
+        };
+        
+        this.ws.onerror = (error) => {
+            reject(new Error('Ошибка подключения к серверу'));
+        };
     }
     
     async handleSocketMessage(message) {
@@ -152,7 +182,7 @@ class VoiceCaller {
         // Обработка ICE кандидатов
         this.peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
-                this.socket.emit('ice-candidate', {
+                this.sendMessage('ice-candidate', {
                     candidate: event.candidate
                 });
             }
@@ -165,7 +195,7 @@ class VoiceCaller {
         const offer = await this.peerConnection.createOffer();
         await this.peerConnection.setLocalDescription(offer);
         
-        this.socket.emit('offer', {
+        this.sendMessage('offer', {
             offer: offer
         });
     }
@@ -176,7 +206,7 @@ class VoiceCaller {
         const answer = await this.peerConnection.createAnswer();
         await this.peerConnection.setLocalDescription(answer);
         
-        this.socket.emit('answer', {
+        this.sendMessage('answer', {
             answer: answer
         });
     }
@@ -188,6 +218,16 @@ class VoiceCaller {
     async handleIceCandidate(message) {
         if (this.peerConnection) {
             await this.peerConnection.addIceCandidate(message.candidate);
+        }
+    }
+    
+    sendMessage(type, data) {
+        if (this.socket) {
+            // Socket.IO
+            this.socket.emit(type, data);
+        } else if (this.ws) {
+            // WebSocket
+            this.ws.send(JSON.stringify({ type, ...data }));
         }
     }
     
@@ -209,6 +249,10 @@ class VoiceCaller {
             this.socket.disconnect();
         }
         
+        if (this.ws) {
+            this.ws.close();
+        }
+        
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => track.stop());
         }
@@ -222,6 +266,7 @@ class VoiceCaller {
     
     resetUI() {
         this.socket = null;
+        this.ws = null;
         this.peerConnection = null;
         this.localStream = null;
         this.isMuted = false;
