@@ -1,0 +1,13 @@
+{
+  "name": "webrtc-voice-caller",
+  "version": "1.0.0",
+  "description": "Simple WebRTC voice calling app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.2",
+    "socket.io": "^4.7.2"
+  }
+}
