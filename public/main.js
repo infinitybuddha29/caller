@@ -60,8 +60,11 @@ class VoiceCaller {
     async initMedia() {
         try {
             this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            console.log('Local stream obtained:', this.localStream);
+            console.log('Audio tracks:', this.localStream.getAudioTracks());
             this.updateStatus('Микрофон подключен...');
         } catch (error) {
+            console.error('Media access error:', error);
             throw new Error('Не удалось получить доступ к микрофону');
         }
     }
@@ -138,11 +141,31 @@ class VoiceCaller {
         
         // Обработка входящего аудио потока
         this.peerConnection.ontrack = (event) => {
+            console.log('Received remote stream');
             const remoteAudio = new Audio();
             remoteAudio.srcObject = event.streams[0];
-            remoteAudio.play();
-            this.updateStatus('Звонок активен', 'connected');
-            this.showControls();
+            remoteAudio.autoplay = true;
+            remoteAudio.controls = false;
+            
+            // Попытка воспроизведения с обработкой ошибок
+            remoteAudio.play().then(() => {
+                console.log('Remote audio started playing');
+                this.updateStatus('Звонок активен', 'connected');
+                this.showControls();
+            }).catch(error => {
+                console.error('Failed to play remote audio:', error);
+                // Браузер может блокировать автовоспроизведение
+                this.updateStatus('Нажмите anywhere для активации звука', 'connected');
+                this.showControls();
+                
+                // Добавляем обработчик клика для запуска звука
+                const startAudio = () => {
+                    remoteAudio.play();
+                    document.removeEventListener('click', startAudio);
+                    this.updateStatus('Звонок активен', 'connected');
+                };
+                document.addEventListener('click', startAudio);
+            });
         };
         
         // Обработка ICE кандидатов
