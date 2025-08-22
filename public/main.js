@@ -115,7 +115,7 @@ class VoiceCaller {
     
     connectWebSocketDirect(roomId, resolve, reject) {
         // Используем публичный WebSocket сервис или деплойте отдельный сервер
-        const wsUrl = 'https://caller-2j05.onrender.com'; // Замените на ваш URL
+        const wsUrl = 'wss://caller-2j05.onrender.com'; // Замените на ваш URL
         this.ws = new WebSocket(wsUrl);
         
         this.ws.onopen = () => {
