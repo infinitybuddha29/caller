@@ -68,8 +68,11 @@ class VoiceCaller {
     
     connectWebSocket(roomId) {
         return new Promise((resolve, reject) => {
+            // Определяем, запущено ли локально или на Vercel
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            
             this.socket = io({
-                path: '/api/socket'
+                path: isLocal ? '/socket.io/' : '/api/socket'
             });
             
             this.socket.on('connect', () => {
