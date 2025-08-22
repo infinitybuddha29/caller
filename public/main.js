@@ -100,8 +100,9 @@ class VoiceCaller {
                 resolve();
             });
             
-            this.socket.on('ready', () => {
-                this.handleSocketMessage({ type: 'ready' });
+            this.socket.on('ready', (data) => {
+                console.log('Raw ready data from server:', data);
+                this.handleSocketMessage(data);
             });
             
             this.socket.on('offer', (data) => {

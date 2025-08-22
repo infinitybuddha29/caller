@@ -85,10 +85,12 @@ function handleJoin(socket, roomId) {
     const initiatorSocket = io.sockets.sockets.get(room[0]);
     if (initiatorSocket) {
       console.log(`Making ${room[0]} the initiator`);
+      console.log('Sending to initiator:', { type: 'ready', isInitiator: true });
       initiatorSocket.emit('ready', { type: 'ready', isInitiator: true });
     }
     // Второй клиент не инициатор
     console.log(`Making ${socket.id} the non-initiator`);
+    console.log('Sending to non-initiator:', { type: 'ready', isInitiator: false });
     socket.emit('ready', { type: 'ready', isInitiator: false });
   }
 }
