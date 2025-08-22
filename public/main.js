@@ -62,7 +62,13 @@ class VoiceCaller {
     
     async initMedia() {
         try {
-            this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            this.localStream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false
+                }
+            });
             console.log('Local stream obtained:', this.localStream);
             console.log('Audio tracks:', this.localStream.getAudioTracks());
             this.updateStatus('Микрофон подключен...');
