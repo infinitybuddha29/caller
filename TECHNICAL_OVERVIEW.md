@@ -116,6 +116,10 @@ const stream = await navigator.mediaDevices.getUserMedia({
         frameRate: { ideal: 30, max: 30 }
     }
 });
+
+// Подключение к HTML video элементам
+localVideo.srcObject = stream;                    // Локальное (с зеркалированием)
+remoteVideo.srcObject = event.streams[0];         // Удалённое
 ```
 
 ### Ограничение битрейта
@@ -306,6 +310,100 @@ console.log('Tracks:', stream.getTracks().map(t => t.kind));
 3. **Медленное соединение** → проверить ICE кандидаты, добавить STUN серверы
 4. **Зависает на connecting** → таймауты и переподключение
 5. **Нет видео на мобильном** → playsinline и обработка автоплея
+
+---
+
+## Новые возможности (последнее обновление)
+
+### UUID система комнат
+```javascript
+// Генерация уникального ID комнаты
+generateUUID() {
+    if (crypto && crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    // Fallback для старых браузеров
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+// Копирование в буфер обмена
+async copyRoomId() {
+    await navigator.clipboard.writeText(this.roomIdInput.value);
+    // Визуальная обратная связь
+    this.copyBtn.textContent = '✅';
+    setTimeout(() => this.copyBtn.textContent = '📋', 1000);
+}
+```
+
+### Улучшенное переподключение
+```javascript
+// Сервер: graceful cleanup с таймаутом
+function handleLeave(socket) {
+    // Уведомляем участников
+    socket.to(roomId).emit('participant-left', { userId: socket.id });
+    
+    // Даём время на переподключение
+    if (room.length === 0) {
+        setTimeout(() => {
+            if (rooms.has(roomId) && rooms.get(roomId).length === 0) {
+                rooms.delete(roomId);
+            }
+        }, 2 * 60 * 1000); // 2 минуты
+    }
+}
+
+// Клиент: мягкая обработка выхода собеседника  
+socket.on('participant-left', () => {
+    this.updateStatus('Собеседник покинул комнату. Можете переподключиться');
+    // Не сбрасываем UI полностью
+    this.peerConnection.close();
+    this.remoteVideo.srcObject = null;
+    this.joinSection.style.display = 'block';
+});
+```
+
+### Отображение ID текущего созвона
+```javascript
+// Во время активного звонка показываем ID комнаты
+updateCurrentRoomDisplay() {
+    if (this.currentRoomId) {
+        this.currentRoomIdSpan.textContent = this.currentRoomId;
+        this.currentRoomInfo.style.display = 'block';
+    }
+}
+
+// Копирование ID прямо из интерфейса звонка
+async copyCurrentRoomId() {
+    await navigator.clipboard.writeText(this.currentRoomId);
+    this.copyCurrentBtn.textContent = '✅';
+}
+```
+
+### Видео интерфейс
+```javascript
+// Зеркалирование локального видео (CSS)
+#localVideo {
+    transform: scaleX(-1); /* Естественное отражение для селфи */
+}
+
+// Адаптивные размеры видео
+.video-wrapper video {
+    width: 480px;     // Desktop
+    height: 360px;
+    object-fit: cover;
+}
+
+@media (max-width: 1000px) {
+    .video-wrapper video {
+        width: 360px;  // Tablet  
+        height: 270px;
+    }
+}
+```
 
 ---
 
