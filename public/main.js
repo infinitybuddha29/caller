@@ -21,6 +21,7 @@ class VoiceCaller {
         this.roomIdInput = document.getElementById('roomId');
         this.joinBtn = document.getElementById('joinBtn');
         this.muteBtn = document.getElementById('muteBtn');
+        this.testBtn = document.getElementById('testBtn');
         this.leaveBtn = document.getElementById('leaveBtn');
         this.status = document.getElementById('status');
         this.joinSection = document.getElementById('joinSection');
@@ -30,6 +31,7 @@ class VoiceCaller {
     bindEvents() {
         this.joinBtn.addEventListener('click', () => this.joinRoom());
         this.muteBtn.addEventListener('click', () => this.toggleMute());
+        this.testBtn.addEventListener('click', () => this.testAudio());
         this.leaveBtn.addEventListener('click', () => this.leaveRoom());
         
         this.roomIdInput.addEventListener('keypress', (e) => {
@@ -157,9 +159,15 @@ class VoiceCaller {
             remoteAudio.autoplay = true;
             remoteAudio.controls = false;
             
+            // Добавляем аудио элемент в DOM для лучшей совместимости
+            remoteAudio.style.display = 'none';
+            document.body.appendChild(remoteAudio);
+            
             // Попытка воспроизведения с обработкой ошибок
             remoteAudio.play().then(() => {
                 console.log('Remote audio started playing');
+                console.log('Remote audio volume:', remoteAudio.volume);
+                console.log('Remote stream tracks:', event.streams[0].getTracks());
                 this.updateStatus('Звонок активен', 'connected');
                 this.showControls();
             }).catch(error => {
@@ -243,6 +251,27 @@ class VoiceCaller {
             this.muteBtn.textContent = this.isMuted ? 'Включить микрофон' : 'Выключить микрофон';
             this.muteBtn.classList.toggle('muted', this.isMuted);
         }
+    }
+    
+    testAudio() {
+        // Создаем тестовый звук
+        const audioContext = new AudioContext();
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 440; // Ля первой октавы
+        gain.gain.value = 0.1; // Тихий звук
+        
+        oscillator.start();
+        setTimeout(() => {
+            oscillator.stop();
+            audioContext.close();
+        }, 500); // 0.5 секунды
+        
+        console.log('Test audio played');
     }
     
     leaveRoom() {
