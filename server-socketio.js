@@ -75,23 +75,44 @@ function handleJoin(socket, roomId) {
   }
   
   const room = rooms.get(roomId);
-  room.push(socket.id);
+  
+  // Проверяем, не подключен ли уже этот сокет к комнате
+  if (!room.includes(socket.id)) {
+    room.push(socket.id);
+  }
   
   console.log(`Client ${socket.id} joined room ${roomId}. Room size: ${room.length}`);
   
-  if (room.length === 2) {
-    console.log('Room is full, designating initiator');
-    // Только первый клиент становится инициатором
-    const initiatorSocket = io.sockets.sockets.get(room[0]);
-    if (initiatorSocket) {
-      console.log(`Making ${room[0]} the initiator`);
-      console.log('Sending to initiator:', { type: 'ready', isInitiator: true });
-      initiatorSocket.emit('ready', { type: 'ready', isInitiator: true });
+  // Разрешаем переподключение, даже если в комнате уже есть участники
+  if (room.length >= 2) {
+    console.log('Room has participants, starting peer connection');
+    
+    // Берём первых двух активных участников
+    const activeParticipants = [];
+    for (const participantId of room) {
+      const participantSocket = io.sockets.sockets.get(participantId);
+      if (participantSocket) {
+        activeParticipants.push(participantId);
+        if (activeParticipants.length === 2) break;
+      }
     }
-    // Второй клиент не инициатор
-    console.log(`Making ${socket.id} the non-initiator`);
-    console.log('Sending to non-initiator:', { type: 'ready', isInitiator: false });
-    socket.emit('ready', { type: 'ready', isInitiator: false });
+    
+    if (activeParticipants.length === 2) {
+      const [initiatorId, nonInitiatorId] = activeParticipants;
+      
+      const initiatorSocket = io.sockets.sockets.get(initiatorId);
+      const nonInitiatorSocket = io.sockets.sockets.get(nonInitiatorId);
+      
+      if (initiatorSocket) {
+        console.log(`Making ${initiatorId} the initiator`);
+        initiatorSocket.emit('ready', { type: 'ready', isInitiator: true });
+      }
+      
+      if (nonInitiatorSocket) {
+        console.log(`Making ${nonInitiatorId} the non-initiator`);
+        nonInitiatorSocket.emit('ready', { type: 'ready', isInitiator: false });
+      }
+    }
   }
 }
 
@@ -113,10 +134,42 @@ function handleLeave(socket) {
     room.splice(index, 1);
     console.log(`Client ${socket.id} left room ${roomId}. Room size: ${room.length}`);
     
+    // Уведомляем оставшихся участников о выходе
+    socket.to(roomId).emit('participant-left', { userId: socket.id });
+    
+    // Очищаем неактивные сокеты из комнаты
+    cleanupRoom(roomId);
+    
     if (room.length === 0) {
-      rooms.delete(roomId);
+      console.log(`Room ${roomId} is empty, will be deleted in 2 minutes if no one rejoins`);
+      // Даём 2 минуты на переподключение (сократил с 5 для тестирования)
+      setTimeout(() => {
+        if (rooms.has(roomId) && rooms.get(roomId).length === 0) {
+          rooms.delete(roomId);
+          console.log(`Room ${roomId} deleted after timeout`);
+        }
+      }, 2 * 60 * 1000); // 2 минуты
     }
   }
+}
+
+function cleanupRoom(roomId) {
+  if (!rooms.has(roomId)) return;
+  
+  const room = rooms.get(roomId);
+  const activeParticipants = [];
+  
+  // Оставляем только активные соединения
+  for (const participantId of room) {
+    const participantSocket = io.sockets.sockets.get(participantId);
+    if (participantSocket && participantSocket.connected) {
+      activeParticipants.push(participantId);
+    }
+  }
+  
+  // Обновляем список участников
+  rooms.set(roomId, activeParticipants);
+  console.log(`Room ${roomId} cleaned up. Active participants: ${activeParticipants.length}`);
 }
 
 const PORT = process.env.PORT || 3000;
