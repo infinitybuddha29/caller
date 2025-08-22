@@ -5,6 +5,7 @@ class VoiceCaller {
         this.localStream = null;
         this.isMuted = false;
         this.isConnected = false;
+        this.isInitiator = false;
         
         this.iceServers = {
             iceServers: [
@@ -108,24 +109,33 @@ class VoiceCaller {
     }
     
     async handleSocketMessage(message) {
-        switch (message.type) {
-            case 'ready':
-                await this.initPeerConnection();
-                await this.createOffer();
-                break;
-                
-            case 'offer':
-                await this.initPeerConnection();
-                await this.handleOffer(message);
-                break;
-                
-            case 'answer':
-                await this.handleAnswer(message);
-                break;
-                
-            case 'ice-candidate':
-                await this.handleIceCandidate(message);
-                break;
+        try {
+            switch (message.type) {
+                case 'ready':
+                    if (!this.isInitiator) {
+                        this.isInitiator = true;
+                        await this.initPeerConnection();
+                        await this.createOffer();
+                    }
+                    break;
+                    
+                case 'offer':
+                    if (!this.peerConnection) {
+                        await this.initPeerConnection();
+                    }
+                    await this.handleOffer(message);
+                    break;
+                    
+                case 'answer':
+                    await this.handleAnswer(message);
+                    break;
+                    
+                case 'ice-candidate':
+                    await this.handleIceCandidate(message);
+                    break;
+            }
+        } catch (error) {
+            console.error('Error handling socket message:', error);
         }
     }
     
@@ -201,7 +211,13 @@ class VoiceCaller {
     }
     
     async handleAnswer(message) {
-        await this.peerConnection.setRemoteDescription(message.answer);
+        console.log('Handling answer, peer connection state:', this.peerConnection.signalingState);
+        if (this.peerConnection.signalingState === 'have-local-offer') {
+            await this.peerConnection.setRemoteDescription(message.answer);
+            console.log('Answer set successfully');
+        } else {
+            console.warn('Received answer in wrong state:', this.peerConnection.signalingState);
+        }
     }
     
     async handleIceCandidate(message) {
@@ -251,6 +267,7 @@ class VoiceCaller {
         this.localStream = null;
         this.isMuted = false;
         this.isConnected = false;
+        this.isInitiator = false;
         
         this.joinBtn.disabled = false;
         this.muteBtn.textContent = 'Выключить микрофон';
