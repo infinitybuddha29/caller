@@ -68,21 +68,8 @@ class VoiceCaller {
     
     connectWebSocket(roomId) {
         return new Promise((resolve, reject) => {
-            // Определяем, где запущено приложение
-            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            const isRender = window.location.hostname.includes('onrender.com');
-            
-            if (isLocal) {
-                // Локально используем Socket.IO
-                this.socket = io();
-            } else if (isRender) {
-                // На Render используем Socket.IO (встроенный сервер)
-                this.socket = io();
-            } else {
-                // На других платформах (Vercel) используем внешний WebSocket
-                this.connectWebSocketDirect(roomId, resolve, reject);
-                return;
-            }
+            // Всегда используем Socket.IO (локально и на Render)
+            this.socket = io();
             
             this.socket.on('connect', () => {
                 this.socket.emit('join', roomId);
@@ -115,31 +102,6 @@ class VoiceCaller {
                 reject(new Error('Ошибка подключения к серверу'));
             });
         });
-    }
-    
-    connectWebSocketDirect(roomId, resolve, reject) {
-        // Используем публичный WebSocket сервис или деплойте отдельный сервер
-        const wsUrl = 'wss://caller-2j05.onrender.com'; // Замените на ваш URL
-        this.ws = new WebSocket(wsUrl);
-        
-        this.ws.onopen = () => {
-            this.ws.send(JSON.stringify({ type: 'join', roomId }));
-            this.updateStatus('Ожидание второго участника...');
-            resolve();
-        };
-        
-        this.ws.onmessage = (event) => {
-            this.handleSocketMessage(JSON.parse(event.data));
-        };
-        
-        this.ws.onclose = () => {
-            this.updateStatus('Соединение с сервером потеряно');
-            this.resetUI();
-        };
-        
-        this.ws.onerror = (error) => {
-            reject(new Error('Ошибка подключения к серверу'));
-        };
     }
     
     async handleSocketMessage(message) {
@@ -227,11 +189,7 @@ class VoiceCaller {
     
     sendMessage(type, data) {
         if (this.socket) {
-            // Socket.IO
             this.socket.emit(type, data);
-        } else if (this.ws) {
-            // WebSocket
-            this.ws.send(JSON.stringify({ type, ...data }));
         }
     }
     
@@ -253,10 +211,6 @@ class VoiceCaller {
             this.socket.disconnect();
         }
         
-        if (this.ws) {
-            this.ws.close();
-        }
-        
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => track.stop());
         }
@@ -270,7 +224,6 @@ class VoiceCaller {
     
     resetUI() {
         this.socket = null;
-        this.ws = null;
         this.peerConnection = null;
         this.localStream = null;
         this.isMuted = false;
