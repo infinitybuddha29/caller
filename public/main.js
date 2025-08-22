@@ -12,6 +12,7 @@ class VoiceCaller {
         this.makingOffer = false;
         this.polite = false;
         this.currentRoomId = null;
+        this.billyImageLoaded = false;
         
         this.iceServers = {
             iceServers: [
@@ -53,12 +54,29 @@ class VoiceCaller {
         this.videoContainer = document.getElementById('videoContainer');
         this.localVideo = document.getElementById('localVideo');
         this.remoteVideo = document.getElementById('remoteVideo');
+        this.billyPlaceholder = document.getElementById('billyPlaceholder');
         this.currentRoomInfo = document.getElementById('currentRoomInfo');
         this.currentRoomIdSpan = document.getElementById('currentRoomId');
         this.copyCurrentBtn = document.getElementById('copyCurrentBtn');
         
         // Генерируем начальный UUID
         this.generateRoomId();
+        
+        // Загружаем картинку Билли
+        this.loadBillyImage();
+    }
+    
+    loadBillyImage() {
+        // Загружаем локальную картинку Билли
+        const billyImg = this.billyPlaceholder?.querySelector('.billy-img');
+        if (billyImg) {
+            billyImg.src = './png-klev-club-9rdu-p-billi-kharrington-png-4.png';
+            billyImg.onerror = () => {
+                // Fallback если картинка не загрузилась
+                billyImg.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCIgdmlld0JveD0iMCAwIDEyMCAxMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjEyMCIgaGVpZ2h0PSIxMjAiIGZpbGw9IiNGRkY1MDAiLz48dGV4dCB4PSI2MCIgeT0iNjUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSI0MCIgZmlsbD0iIzMzMyIgdGV4dC1hbmNob3I9Im1pZGRsZSI+💪</dGV4dD48L3N2Zz4=';
+            };
+            this.billyImageLoaded = true;
+        }
     }
     
     bindEvents() {
@@ -154,6 +172,11 @@ class VoiceCaller {
             
             this.socket.on('ready', (data) => {
                 console.log('Raw ready data from server:', data);
+                // Показываем видео контейнер, но Billy только если еще нет удаленного видео
+                this.videoContainer.style.display = 'flex';
+                if (!this.remoteVideo.srcObject) {
+                    this.showBillyPlaceholder();
+                }
                 this.handleSocketMessage(data);
             });
             
@@ -179,10 +202,11 @@ class VoiceCaller {
                     this.peerConnection = null;
                 }
                 
-                // Очищаем remote video
+                // Очищаем remote video и показываем Billy в ожидании
                 if (this.remoteVideo) {
                     this.remoteVideo.srcObject = null;
                 }
+                this.showBillyPlaceholder();
                 
                 // Возвращаем к интерфейсу подключения, но не сбрасываем локальное видео
                 this.joinSection.style.display = 'block';
@@ -286,26 +310,32 @@ class VoiceCaller {
             // Подключаем remote video
             this.remoteVideo.srcObject = stream;
             
+            // Сразу убираем Billy когда получили удаленный поток
+            this.hideBillyPlaceholder();
+            
             // Попытка воспроизведения с обработкой ошибок
             this.remoteVideo.play().then(() => {
                 console.log('Remote video started playing');
                 console.log('Remote stream tracks:', stream.getTracks().map(t => t.kind));
-                this.updateStatus('Видеозвонок активен', 'connected');
+                
+                // Показываем празднование подключения! 🤣
+                this.showBillyCelebration();
+                
                 this.showControls();
-                this.videoContainer.style.display = 'flex';
                 this.updateCurrentRoomDisplay();
             }).catch(error => {
                 console.error('Failed to play remote video:', error);
                 // Браузер может блокировать автовоспроизведение
                 this.updateStatus('Нажмите для активации видео/звука', 'connected');
                 this.showControls();
-                this.videoContainer.style.display = 'flex';
                 
                 // Добавляем обработчик клика для запуска медиа
                 const startMedia = () => {
-                    this.remoteVideo.play();
+                    this.remoteVideo.play().then(() => {
+                        this.showBillyCelebration();
+                        this.updateStatus('Видеозвонок активен', 'connected');
+                    });
                     document.removeEventListener('click', startMedia);
-                    this.updateStatus('Видеозвонок активен', 'connected');
                 };
                 document.addEventListener('click', startMedia);
             });
@@ -680,9 +710,59 @@ class VoiceCaller {
         this.updateStatus('Сгенерирован уникальный Room ID. Поделитесь им с собеседником');
     }
     
+    showBillyPlaceholder() {
+        if (this.billyPlaceholder) {
+            this.billyPlaceholder.style.display = 'flex';
+        }
+    }
+    
+    hideBillyPlaceholder() {
+        if (this.billyPlaceholder) {
+            this.billyPlaceholder.style.display = 'none';
+        }
+    }
+    
+    showBillyCelebration() {
+        // Легендарная цитата Билли появляется в отдельном попапе! 🤣
+        const celebration = document.createElement('div');
+        celebration.className = 'billy-celebration';
+        celebration.innerHTML = `
+            <div class="billy-quote">
+                <div class="billy-avatar">💪</div>
+                <div class="billy-message">Let's celebrate and eat some cakes! 🎉</div>
+            </div>
+        `;
+        
+        // Стили для попапа
+        celebration.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 1000;
+            font-weight: bold;
+            animation: slideInRight 0.5s ease-out, fadeOut 0.5s ease-in 2.5s forwards;
+            max-width: 300px;
+        `;
+        
+        document.body.appendChild(celebration);
+        
+        // Убираем через 3 секунды
+        setTimeout(() => {
+            if (celebration.parentNode) {
+                celebration.parentNode.removeChild(celebration);
+            }
+        }, 3000);
+    }
+    
     showControls() {
         this.joinSection.style.display = 'none';
         this.controls.style.display = 'block';
+        this.videoContainer.style.display = 'flex';
         this.isConnected = true;
     }
     
